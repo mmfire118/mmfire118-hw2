@@ -1,4 +1,4 @@
-1) Text parsing supports only 0-10; broader English numbers fail
+1) Text parsing supports only 0-10; broader English numbers fail (FIXED)
    - Symptoms: "eleven", "twenty one", "one hundred twenty three", etc. return error
    - Hyphenated/extra-spaced forms (e.g., "twenty-one", " Twenty-One ") also fail
    - README mismatch: example "forty two" fails
@@ -41,7 +41,7 @@
    - Risk: information disclosure; inconsistent client UX
    - Tests: tests/test_api_errors.py::test_error_message_should_be_generic
 
-9) Unused dependency/import: text2digits
+9) Unused dependency/import: text2digits (FIXED)
    - Symptoms: imported in api/index.py but not used
    - Files: api/index.py, requirements.txt
    - Tests: tests/test_code_quality_unused_imports.py::test_text2digits_import_is_used
@@ -60,7 +60,13 @@
    - Tests: tests/test_security_csrf_and_debug.py::test_missing_csrf_protection_on_convert
 
 13) Debug flag present in code
-   - Symptoms: app.run(debug=True) is present; risk if deployed in debug
+   - Symptoms: app.run(debug=True) is present which exposes the Werkzeug debugger and allows the execution of arbitrary code
+   - Reference: https://github.com/PyCQA/bandit
+      Issue: [B201:flask_debug_true] A Flask app appears to be run with debug=True, which exposes the Werkzeug debugger and allows the execution of arbitrary code.
+      Severity: High   Confidence: Medium
+      CWE: CWE-94 (https://cwe.mitre.org/data/definitions/94.html)
+      More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b201_flask_debug_true.html
+      Location: api/index.py:104:4
    - Tests: tests/test_security_csrf_and_debug.py::test_debug_flag_not_enabled_in_production
 
 14) Reflected error message includes untrusted input (exploit demonstration)

@@ -7,24 +7,21 @@ import re
 app = Flask(__name__)
 
 def text_to_number(text):
-    """Convert English text number to integer"""
-    # Remove any non-alphanumeric characters and convert to lowercase
-    text = re.sub(r'[^a-zA-Z\s-]', '', text.lower())
-    
-    # Special case for zero
-    if text in ['zero', 'nil']:
+    """Convert English text number to integer using text2digits for broad support."""
+    # Handle common alias for zero
+    normalized = text.strip().lower()
+    if normalized == 'nil':
         return 0
-    
-    # Dictionary for special number words
-    number_words = {
-        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10
-    }
-    
-    if text in number_words:
-        return number_words[text]
-    
-    raise ValueError("Unable to convert text to number")
+
+    # Use text2digits to convert words to digits while tolerating hyphens, punctuation, and spacing
+    t2d = text2digits.Text2Digits()
+    converted = t2d.convert(text)
+
+    # Extract digits from the converted string; this covers cases like "One, Hundred!" -> "100"
+    digits = re.sub(r'[^0-9]', '', converted)
+    if digits == '':
+        raise ValueError("Unable to convert text to number")
+    return int(digits)
 
 def number_to_text(number):
     """Convert integer to English text"""
