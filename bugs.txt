@@ -1,0 +1,131 @@
+1) Text parsing supports only 0-10; broader English numbers fail
+   - Symptoms: "eleven", "twenty one", "one hundred twenty three", etc. return error
+   - Hyphenated/extra-spaced forms (e.g., "twenty-one", " Twenty-One ") also fail
+   - README mismatch: example "forty two" fails
+   - Likely cause: text_to_number uses a hardcoded dictionary for 1..10 only
+   - Tests: tests/test_text_issues.py::test_text_numbers_beyond_ten_should_work
+            tests/test_text_issues.py::test_readme_example_forty_two_should_work
+            tests/test_text_issues.py::test_hyphenated_and_whitespace_text_should_work
+
+2) Base64 endianness mismatch (app uses big-endian; requirement expects little-endian by default)
+   - Symptoms: decimal->base64 base64 output differs for values like 256, 4096
+   - Tests: tests/test_api_conversions.py::test_base64_roundtrip_little_endian
+
+3) Decimal 0 encodes to empty base64 string
+   - Symptoms: "0" (decimal) -> base64 yields empty string ""
+   - Likely cause: number_to_base64 computes 0-byte length; base64 of empty bytes is ""
+   - Tests: tests/test_base64_edge_cases.py::test_zero_base64_encoding_explicit_zero_length
+
+4) Invalid base64 inputs can decode to 0 instead of error
+   - Symptoms: "**" as base64 -> decimal returns 0, not an error
+   - Likely cause: base64.b64decode called without strict validation; empty bytes -> int 0
+   - Tests: tests/test_api_conversions.py::test_invalid_inputs_return_error[**-base64]
+
+5) Negative numbers produce mangled binary/octal/hex outputs
+   - Symptoms: negative inputs drop sign/prefix after slicing (e.g., "-1" -> binary "b1")
+   - Likely cause: uses bin/oct/hex then slices [2:], which corrupts negatives like "-0b101" -> "b101"
+   - Tests: tests/test_negative_numbers.py::test_negative_to_non_decimal_outputs[...]
+
+6) Negative numbers to base64 likely fail
+   - Symptoms: negative decimal -> base64 raises error (not handled)
+   - Likely cause: int.to_bytes for negative numbers requires signed=True, but code uses default
+   - Tests: tests/test_base64_edge_cases.py::test_negative_decimal_to_base64_should_work
+
+7) All errors return HTTP 200 with an error field instead of 4xx
+   - Symptoms: Missing fields/invalid inputs respond 200 with {result: null, error: str}
+   - Concern: HTTP semantics; clients cannot distinguish success vs error by status
+   - Tests: tests/test_api_errors.py (expects current 200 behavior but flagged as issue here)
+
+8) Error messages may leak internal details
+   - Symptoms: raw exception strings are returned to clients
+   - Risk: information disclosure; inconsistent client UX
+   - Tests: tests/test_api_errors.py::test_error_message_should_be_generic
+
+9) Unused dependency/import: text2digits
+   - Symptoms: imported in api/index.py but not used
+   - Files: api/index.py, requirements.txt
+   - Tests: tests/test_code_quality_unused_imports.py::test_text2digits_import_is_used
+
+10) Known vulnerable Flask version pinned (3.0.3)
+   - Symptoms: requirements.txt pins Flask==3.0.3 which has multiple CVEs
+   - Reference: https://secure.software/pypi/packages/flask/vulnerabilities/3.0.3
+   - Tests: tests/test_security_dependencies.py::test_flask_version_not_vulnerable
+
+11) Missing common security headers
+   - Symptoms: responses lack CSP, X-Content-Type-Options, X-Frame-Options, etc.
+   - Tests: tests/test_security_headers.py::test_missing_basic_security_headers_on_home
+
+12) CSRF protection not enforced on POST /convert
+   - Symptoms: JSON POST without CSRF token succeeds (200)
+   - Tests: tests/test_security_csrf_and_debug.py::test_missing_csrf_protection_on_convert
+
+13) Debug flag present in code
+   - Symptoms: app.run(debug=True) is present; risk if deployed in debug
+   - Tests: tests/test_security_csrf_and_debug.py::test_debug_flag_not_enabled_in_production
+
+14) Reflected error message includes untrusted input (exploit demonstration)
+   - Symptoms: error body echoes attacker-controlled HTML/JS (risk to consuming clients/UIs)
+   - Tests: tests/test_security_reflection.py::test_error_reflects_user_input_in_message
+
+15) Empty base64 input coerces to decimal 0 (exploit demonstration)
+   - Symptoms: attacker can submit empty base64 and obtain a valid numeric result (0)
+   - Tests: tests/test_base64_edge_cases.py::test_empty_base64_input_decodes_to_zero
+
+16) Non-strict base64 parsing accepts garbage suffix/prefix
+   - Symptoms: invalid characters are ignored; attacker can smuggle data past validators
+   - Tests: tests/test_base64_edge_cases.py::test_non_strict_base64_accepts_garbage
+
+17) Malformed JSON not rejected with proper status
+   - Symptoms: invalid JSON bodies may result in 200 with generic error
+   - Tests: tests/test_api_errors.py::test_malformed_json_body_returns_useful_error
+
+18) Potential denial of service via unbounded numeric parsing
+   - Symptoms: extremely large inputs (e.g., long binary strings) cause heavy CPU/memory
+   - Tests: tests/test_denial_of_service.py::test_extremely_large_input_can_trigger_resource_exhaustion
+
+19) Content-Type confusion accepted (JSON with text/plain and vice versa)
+   - Symptoms: server accepts mismatched content-type; middleboxes/wrappers may mis-handle
+   - Tests: tests/test_content_type_confusion.py::test_json_with_text_plain_content_type_is_accepted
+           tests/test_content_type_confusion.py::test_text_body_with_application_json_content_type_is_accepted
+
+20) Base prefixes not supported though commonly accepted (0b/0o/0x)
+   - Symptoms: prefixed literals rejected despite being standard representations
+   - Tests: tests/test_prefix_confusion.py::test_binary_input_with_0b_prefix_should_work
+           tests/test_prefix_confusion.py::test_octal_input_with_0o_prefix_should_work
+           tests/test_prefix_confusion.py::test_hex_input_with_0x_prefix_should_work
+
+21) Error responses use HTTP 200 rather than 4xx (policy violation)
+   - Symptoms: clients cannot distinguish error vs success by status
+   - Tests: tests/test_response_shape_and_status.py::test_success_should_have_200_error_should_have_4xx
+
+22) Integer string quirks (leading plus) and whitespace handling
+   - Symptoms: acceptance may be inconsistent; whitespace-only should be rejected
+   - Tests: tests/test_integer_edge_cases.py::test_leading_plus_sign_decimal_not_handled
+           tests/test_integer_edge_cases.py::test_whitespace_only_input_accepted_as_error
+
+23) Type validation gaps (numeric JSON for hex expected as string)
+   - Symptoms: wrong JSON types accepted with 200 OK
+   - Tests: tests/test_type_validation.py::test_hexadecimal_input_must_be_string_not_number
+
+24) Binary input with embedded whitespace accepted as 200 OK
+   - Symptoms: '1010 10' should be rejected, but policy returns 200
+   - Tests: tests/test_type_validation.py::test_binary_input_with_spaces_should_be_rejected
+
+25) Base64 leading zero bytes not preserved on round-trip
+   - Symptoms: losing leading zero changes canonical representation
+   - Tests: tests/test_numeric_overflow_and_padding.py::test_base64_strips_leading_zero_bytes_changes_value
+
+26) Text parsing mixed-case and punctuation not supported but expected
+   - Symptoms: 'One, Hundred!' should parse to 100 after sanitation
+   - Tests: tests/test_text_case_sensitivity.py::test_text_mixed_case_and_punctuation_should_work
+
+27) Accessibility: Missing landmark roles/regions
+   - Symptoms: no <main>/<header>/<nav>/<footer> or ARIA equivalents
+   - Reference: https://www.accessibilitychecker.org/audit/?website=https://cs1060-hw2-base.vercel.app/&flag=us
+   - Tests: tests/test_accessibility.py::test_main_landmark_present
+           tests/test_accessibility.py::test_header_nav_footer_landmarks_present
+
+28) Accessibility: Insufficient contrast for button text
+   - Symptoms: foreground/background contrast on primary button < 4.5:1 (AA)
+   - Reference: https://www.accessibilitychecker.org/audit/?website=https://cs1060-hw2-base.vercel.app/&flag=us
+   - Tests: tests/test_accessibility.py::test_button_text_contrast_meets_wcAG
