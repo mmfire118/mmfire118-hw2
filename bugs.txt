@@ -46,7 +46,7 @@
    - Files: api/index.py, requirements.txt
    - Tests: tests/test_code_quality_unused_imports.py::test_text2digits_import_is_used
 
-10) Known vulnerable Flask version pinned (3.0.3)
+10) Extra credit: Known vulnerable Flask version pinned (imported/library code)
    - Symptoms: requirements.txt pins Flask==3.0.3 which has multiple CVEs
    - Reference: https://secure.software/pypi/packages/flask/vulnerabilities/3.0.3
    - Tests: tests/test_security_dependencies.py::test_flask_version_not_vulnerable
@@ -135,9 +135,3 @@
    - Symptoms: foreground/background contrast on primary button < 4.5:1 (AA)
    - Reference: https://www.accessibilitychecker.org/audit/?website=https://cs1060-hw2-base.vercel.app/&flag=us
    - Tests: tests/test_accessibility.py::test_button_text_contrast_meets_wcAG
-
-29) Extra credit: Tests detect issue in imported/library code (DETECTED)
-   - Description: Dependency vulnerability flagged for Flask==3.0.3 (imported library)
-   - Reference: https://secure.software/pypi/packages/flask/vulnerabilities/3.0.3
-   - Tests: tests/test_security_dependencies.py::test_flask_version_not_vulnerable
-   - Status: DETECTED in dependency (not fixed in this commit)
